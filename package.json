@@ -1,0 +1,8 @@
+{
+    "name": "neet-bot",
+    "version": "0.0.1",
+    "description": "An all purpose bot.",
+    "main": "neet_bot.py",
+    "author": "Mike Ostrander",
+    "dependencies": {}
+}

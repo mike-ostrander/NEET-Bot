@@ -27,12 +27,14 @@ async def on_ready():
 async def on_message(message):
     if message.author == client.user:
         return
-    # if message.content.startswith(bot.command_prefix):
-    #     await messsage.channel.send('Hello!')
     if preferences['auditIsActive']:
         audit_message(message, preferences['audit_channel'])
     if message.content.startsWith(bot.command_prefux+'set audit'):
         audit_setup(preferences)
+
+
+# @bot.command()
+# async def audit(ctx):
 
 
 client.run(TOKEN)
