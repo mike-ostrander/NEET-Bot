@@ -1,40 +1,50 @@
-import os
-import discord
-from discord.ext import commands
-from audit_feature import audit_message, audit_setup
+from discord.ext.commands import Bot
+from audit_feature import audit_message
 import json
 
-TOKEN = os.getenv('')
-client = discord.Client()
 
-
-def set_preferences():
-    with open("preferences.json") as preferences_file:
+def load_from_json(filename):
+    with open(filename) as preferences_file:
         data = json.load(preferences_file)
     return data
 
 
-preferences = set_preferences()
-bot = commands.Bot(command_prefix=preferences['commandPrefix'])
+preferences = load_from_json("preferences.json")
+bot = Bot(command_prefix=preferences['commandPrefix'])
+TOKEN = load_from_json("auth.json")['token']
 
 
-@client.event
+@bot.event
 async def on_ready():
-    print('We have logged in as {0.user}'.format(client))
+    print('We have logged in as {0.user}'.format(bot))
 
 
-@client.event
+@bot.event
 async def on_message(message):
-    if message.author == client.user:
+    print('{0.created_at} {0.author}: {0.content}'.format(message))
+    if message.author == bot.user:
         return
     if preferences['auditIsActive']:
-        audit_message(message, preferences['audit_channel'])
-    if message.content.startsWith(bot.command_prefux+'set audit'):
-        audit_setup(preferences)
+        audit_message(message, '.')
+    # if not preferences['auditIsActive']:
+    #     return
+    await bot.process_commands(message)
 
 
-# @bot.command()
-# async def audit(ctx):
+@bot.command()
+async def audit(ctx):
+    print('{0.author} used the audit command in {0.channel}.'.format(ctx))
+    if preferences['auditIsActive']:
+        await ctx.channel.send("The audit feature is already enabled. Would you like to disable?")
+        return
+    if not preferences['auditIsActive']:
+        await ctx.channel.send("The audit feature is currently disabled. Would you like to enable?")
+        return
 
 
-client.run(TOKEN)
+@bot.command()
+async def ping(ctx):
+    await ctx.channel.send("pong")
+
+
+bot.run(TOKEN)

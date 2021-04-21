@@ -1,5 +1,5 @@
 {
     "commandPrefix": ".",
-    "auditIsActive": "false",
+    "auditIsActive": false,
     "auditChannel": ""
 }
