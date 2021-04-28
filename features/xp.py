@@ -3,23 +3,16 @@ import datetime
 
 async def xp_process(ctx, xp):
     # XP calculations
-    server = next(filter(lambda x: x["serverId"] == ctx.guild.id, xp["servers"]), None)
-    # Checks the xp.json file to see if the server has been added
-    if server is not None:
-        # It then checks if the message's author has been added
-        user = next(filter(lambda x: x["userId"] == ctx.author.id, server["users"]), None)
-        # If the author already exists, it will add the experience.
-        if user is not None:
-            user.update(await add(ctx, user))
-        # If the author doesn't exist in the list, it will add them to xp.json along with the experience
-        elif user is None:
-            print("Adding {} to the Leaderboard".format(ctx.author))
-            server['users'].append(await populate_exist(ctx))
+    # It checks if the message's author has been added
+    user = next(filter(lambda x: x["userId"] == ctx.author.id, xp["users"]), None)
+    # If the author already exists, it will add the experience.
+    if user is not None:
+        user.update(await add(ctx, user))
+    # If the author doesn't exist in the list, it will add them to xp.json along with the experience
+    elif user is None:
+        print("Adding {} to the Leaderboard".format(ctx.author))
+        xp['users'].append(await populate_exist(ctx))
     # If the server hasn't been added, it will then add it along with the author and experience.
-    elif server is None:
-        xp['servers'].append({"serverId": ctx.guild.id, "users": []})
-        xp = await xp_process(ctx, xp)
-    # write_to_json(xp, xp['path'])
     return xp
 
 
@@ -54,29 +47,22 @@ async def populate_exist(msg):
 
 def populate_new(mem, xp):
     # XP calculations
-    server = next(filter(lambda x: x["serverId"] == mem.guild.id, xp["servers"]), None)
-    # Checks the xp.json file to see if the server has been added
-    if server is not None:
-        # It then checks if the message's author has been added
-        user = next(filter(lambda x: x["userId"] == mem.id, server["users"]), None)
-        # If the author already exists, it will return.
-        if user is not None:
-            return
-        # If the author doesn't exist in the list, it will add them to xp.json
-        elif user is None:
-            print("Adding {} to the Leaderboard".format(user))
-            server['users'].append({
-                "userId": mem.id,
-                "userTotalXp": 0,
-                "userLvl": 1,
-                "nextLvl": next_lvl(1),
-                "lastMsg": "2021-01-01T00:00:00.000000",
-                "server": mem.guild.id
-            })
-    # If the server hasn't been added, it will then add it along with the author.
-    elif server is None:
-        xp['servers'].append({"serverId": mem.guild.id, "users": []})
-        populate_new(mem, xp)
+    # It checks if the message's author has been added
+    user = next(filter(lambda x: x["userId"] == mem.id, xp["users"]), None)
+    # If the author already exists, it will return.
+    if user is not None:
+        return
+    # If the author doesn't exist in the list, it will add them to xp.json
+    elif user is None:
+        print("Adding {} to the Leaderboard".format(user))
+        xp['users'].append({
+            "userId": mem.id,
+            "userTotalXp": 0,
+            "userLvl": 1,
+            "nextLvl": next_lvl(1),
+            "lastMsg": "2021-01-01T00:00:00.000000",
+            "server": mem.guild.id
+        })
     return xp
 
 

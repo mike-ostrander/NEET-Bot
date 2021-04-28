@@ -1,14 +1,9 @@
 from discord.ext.commands import Bot, errors
 from discord import Member
-# from discord import guild
 import json
 import random
-from features.xp import add, populate_exist
-import os.path
-from os import path
 from features.xp import xp_process, populate_new
 from features.util import *
-
 
 bot = Bot(command_prefix='.')
 TOKEN = load_from_json("json/auth.json")['token']
@@ -23,10 +18,8 @@ async def on_ready():
 @bot.event
 async def on_message(ctx):
     # Loads the files for the specific server it gets the message from
-    pref_name = 'json/preferences-{}.json'.format(ctx.guild.id)
-    xp_name = 'json/xp-{}.json'.format(ctx.guild.id)
-    preferences = check_server_file(ctx, pref_name, 'preferences', bot.user.id)
-    xp = check_server_file(ctx, xp_name, 'xp', bot.user.id)
+    preferences = check_server_file(ctx, 'preferences', bot)
+    xp = check_server_file(ctx, 'xp', bot)
     print('Server: {0.guild}\n{0.created_at} {0.author}: {0.content}'.format(ctx))
     # Checks if the incoming message is from the bot, and if it is, it will ignore it.
     if ctx.author == bot.user:
@@ -46,18 +39,20 @@ async def on_message(ctx):
 
 @bot.event
 async def on_member_join(member):
-    pref_name = 'json/preferences-{}.json'.format(member.guild.id)
-    xp_name = 'json/xp-{}.json'.format(member.guild.id)
-    preferences = check_server_file(member, pref_name, 'preferences', bot.user.id)
-    xp = check_server_file(member, xp_name, 'xp', bot.user.id)
+    preferences = check_server_file(member, 'preferences', bot)
+    xp = check_server_file(member, 'xp', bot)
     if preferences['isGreet']:
-        channel = bot.get_channel(preferences['auditChannel'])
-        await channel.send('Welcome to the server, {}!'.format(member.id.mention))
+        channel = bot.get_channel(preferences['greetChannel'])
+        if '{}' in preferences['greetMsg']:
+            await channel.send(preferences['greetMsg'].format(member.id.mention))
+        else:
+            await channel.send(preferences['greetMsg'])
     write_to_json(populate_new(member, xp), xp['path'])
 
 
 @bot.event
-async def on_message_delete(ctx, pref):
+async def on_message_delete(ctx):
+    pref = check_server_file(ctx, 'preferences', bot)
     if ctx.author == bot.user:
         return
     if pref['auditIsActive']:
@@ -67,7 +62,8 @@ async def on_message_delete(ctx, pref):
 
 
 @bot.event
-async def on_message_edit(old_msg, new_msg, pref):
+async def on_message_edit(old_msg, new_msg):
+    pref = check_server_file(old_msg, 'preferences', bot)
     if old_msg.author == bot.user:
         return
     if pref['auditIsActive']:
@@ -83,7 +79,7 @@ async def on_message_edit(old_msg, new_msg, pref):
 @bot.command()
 async def audit(ctx):
     print('{0.author} used the audit command in {0.channel}.'.format(ctx))
-    pref = check_server_file(ctx, 'json/preferences-{}.json'.format(ctx.guild.id), 'preferences', bot.user.id)
+    pref = check_server_file(ctx, 'preferences', bot)
     if pref['auditIsActive']:
         await ctx.channel.send(
             "The audit feature is enabled. Disable or change channel? (Disable, Change, or Exit)")
@@ -166,9 +162,93 @@ async def lvl(ctx, member: Member = None):
     xp = load_from_json('json/xp-{}.json'.format(ctx.guild.id))
     if member is None:
         member = ctx.author
+        intro = 'You are'
+    else:
+        intro = '{} is'.format(member.display_name)
     user = get_user(member.id, xp)
-    await ctx.channel.send('{} is currently level {} ({}/{}EXP)'.format(
-        member.display_name, user['userLvl'], user['userTotalXp'], user['nextLvl']))
+    await ctx.channel.send('{} currently level {} ({}/{}EXP)'.format(
+        intro, user['userLvl'], user['userTotalXp'], user['nextLvl']))
 
+
+@bot.command()
+async def top(ctx, arg: int = None):
+    xp = check_server_file(ctx, 'xp', bot)
+    user_list = []
+    leaderboard = 'Top {}:'.format(arg)
+    for user in xp['users']:
+        if bot.user.id != user['userId']:
+            user_list.append([user['userId'], user['userTotalXp']])
+    user_list.sort(reverse=True, key=lambda x: x[1])
+    if arg is None:
+        arg = 10
+        leaderboard = 'Top {}:'.format(10)
+    if arg >= len(user_list):
+        arg = len(user_list)
+    y = 0
+    while y < arg:
+        leaderboard = '{}\n{}. {}\t{}'.format(leaderboard, (y+1), await bot.fetch_user(user_list[y][0]),
+                                              user_list[y][1])
+        y += 1
+    print(leaderboard)
+    await ctx.channel.send('```{}```'.format(leaderboard))
+
+
+@bot.command()
+async def say(ctx, arg):
+    await ctx.message.delete()
+    await ctx.channel.send(arg)
+
+
+@bot.command()
+async def greet(ctx, arg: str = None):
+    pref = check_server_file(ctx, 'preferences', bot)
+    if arg is None:
+        await ctx.channel.send('The commands available are: enable, disable, channel, and message')
+        msg = await bot.wait_for('message', check=lambda message: message.author == ctx.author)
+        arg = msg.content
+    if pref['isGreet']:
+        if arg.lower() == 'channel':
+            await ctx.channel.send('The current greeting channel is {}. Would you like to change it? Y/N'
+                                   .format(pref['greetChannel']))
+            msg = await bot.wait_for('message', check=lambda message: message.author == ctx.author)
+            if msg.content.lower() == 'y' or msg.content.lower() == 'yes':
+                await ctx.channel.send('Please enter the channel ID of the new channel.')
+                msg = await bot.wait_for('message', check=lambda message: message.author == ctx.author)
+                res = await validate_channel(msg, bot)
+                if res == 'cancelled':
+                    await ctx.channel.send('Command cancelled.')
+                else:
+                    pref['greetChannel'] = res
+                    write_to_json(pref, 'json/preferences-{}.json'.format(ctx.guild.id))
+        elif arg.lower() == 'message':
+            await ctx.channel.send('The current greeting is {}. Would you like to change it? Y/N'
+                                   .format(pref['greetMsg']))
+            msg = await bot.wait_for('message', check=lambda message: message.author == ctx.author)
+            if msg.content.lower() == 'y' or msg.content.lower() == 'yes':
+                await ctx.channel.send('Please enter the new greeting or cancel to exit. To include the new member, '
+                                       'simply put {} where you want it at.')
+                msg = await bot.wait_for('message', check=lambda message: message.author == ctx.author)
+                if msg.content == 'cancel':
+                    await ctx.channel.send('Command cancelled.')
+                else:
+                    pref['greetMsg'] = msg.content
+                    write_to_json(pref, 'json/preferences-{}.json'.format(ctx.guild.id))
+        elif arg.lower() == 'disable':
+            pref['isGreet'] = False
+            write_to_json(pref, 'json/preferences-{}.json'.format(ctx.guild.id))
+        elif arg.lower() == 'enable':
+            await ctx.channel.send('The greeting function is already enabled.')
+    else:
+        if arg.lower() == 'enable':
+            await ctx.channel.send('Please enter the channel ID for the greeting to go.')
+            msg = await bot.wait_for('message', check=lambda message: message.author == ctx.author)
+            res = await validate_channel(msg, bot)
+            if res == 'cancelled':
+                await ctx.channel.send('Command cancelled.')
+            else:
+                pref['greetChannel'] = res
+                pref['isGreet'] = True
+                write_to_json(pref, 'json/preferences-{}.json'.format(ctx.guild.id))
+        return
 
 bot.run(TOKEN)

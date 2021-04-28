@@ -7,30 +7,29 @@ def write_to_json(content, filename):
     load_from_json(filename)
 
 
-def check_server_file(ctx, filename, file_type, bot_id):
-    # filename = '{}/{}-{}.{}'.format(direct, file, ctx.guild.id, ext)
+def check_server_file(ctx, name, bot):
     contents = None
+    filename = 'json/{}-{}.json'.format(name, ctx.guild.id)
     try:
-        return load_from_json('{}'.format(filename))
+        return load_from_json(filename)
     except FileNotFoundError:
-        if file_type == 'preferences':
+        if name == 'preferences':
             contents = {"path": filename, "serverId": ctx.guild.id, "commandPrefix": ".",
-                        "auditIsActive": False, "auditChannel": 0}
-        elif file_type == 'xp':
+                        "auditIsActive": False, "auditChannel": 0, "isGreet": False, "greetChannel": 0,
+                        "greatMsg": "Welcome to the server, {}"}
+        elif name == 'xp':
             contents = {"path": filename, "serverId": ctx.guild.id, "xpEnabled": True, "xpIgnoreChannels": 0,
-                        "servers": [{
-                            "serverId": ctx.guild.id,
-                            "users": [{
-                                "userId": bot_id,
-                                "userTotalXp": 4206900000000000000,
-                                "userLvl": 420690,
-                                "nextLvl": 0,
-                                "lastMsg": "2021-01-01T00:00:00.000000",
-                                "server": ctx.guild.id
-                            }]}]}
+                        "users": [{
+                            "userId": bot.user.id,
+                            "userTotalXp": 4206900000000000000,
+                            "userLvl": 420690,
+                            "nextLvl": 0,
+                            "lastMsg": "2021-01-01T00:00:00.000000",
+                            "server": ctx.guild.id
+                        }]}
         with open(filename, 'w') as outfile:
             json.dump(contents, outfile)
-        return load_from_json('{}'.format(filename))
+        return load_from_json(filename)
 
 
 def get_user(user_id, xp):
