@@ -6,8 +6,51 @@ from features.xp import xp_process, populate_new
 from features.util import *
 
 bot = Bot(command_prefix='.')
-TOKEN = load_from_json("json/auth.json")['token']
 error_handling = errors
+
+
+def load_from_json(filename):
+    try:
+        with open('json/{}.json'.format(filename)) as file:
+            data = json.load(file)
+    except FileNotFoundError:
+        create_file(filename)
+        data = load_from_json(filename)
+
+    return data
+
+
+def create_file(name):
+    contents = None
+    filename = 'json/{}.json'.format(name)
+    if name == 'preferences':
+        contents = {
+            "path": filename,
+            "name": name,
+            "servers": []
+        }
+    elif name == 'xp':
+        contents = {
+            "path": filename,
+            "name": name,
+            "servers": []}
+    with open('json/{}.json'.format(name), 'w') as outfile:
+        json.dump(contents, outfile)
+    return
+
+
+preferences = load_from_json('preferences')
+TOKEN = load_from_json("auth")['token']
+xp_data = load_from_json('xp')
+
+
+def load_globals(name):
+    global preferences
+    global xp_data
+    if name == 'preferences':
+        preferences = load_from_json('preferences')
+    elif name == 'xp':
+        xp_data = load_from_json('xp')
 
 
 @bot.event
@@ -18,41 +61,49 @@ async def on_ready():
 @bot.event
 async def on_message(ctx):
     # Loads the files for the specific server it gets the message from
-    preferences = check_server_file(ctx, 'preferences', bot)
-    xp = check_server_file(ctx, 'xp', bot)
     print('Server: {0.guild}\n{0.created_at} {0.author}: {0.content}'.format(ctx))
+    pref = preferences
+    xp = xp_data
+    server = next(filter(lambda x: x["serverId"] == ctx.guild.id, preferences["servers"]), None)
+    if server is None:
+        pref = add_server(ctx, pref, bot)
+        server = next(filter(lambda x: x["serverId"] == ctx.guild.id, pref["servers"]), None)
+        pref['servers'].append(server)
+        write_to_json(preferences, 'json/preferences.json'.format(ctx.guild.id))
+        load_globals('preferences')
     # Checks if the incoming message is from the bot, and if it is, it will ignore it.
     if ctx.author == bot.user:
         return
     # If the audit is active, the bot will send a copy of the incoming message to the designated audit channel
-    if preferences['auditIsActive']:
+    if server['auditIsActive']:
         try:
             timestamp = ctx.created_at.strftime("%m/%d/%Y %I:%M:%S%p")
-            channel = bot.get_channel(preferences['auditChannel'])
+            channel = bot.get_channel(server['auditChannel'])
             await channel.send(
                 f'{timestamp}\n{ctx.author.mention} in {ctx.channel.mention}: \n{ctx.content}')
         except AttributeError:
             print("No audit channel set.")
-    write_to_json(await xp_process(ctx, xp), xp['path'])
+    write_to_json(await xp_process(ctx, xp, bot), xp['path'])
+    load_globals('xp')
     await bot.process_commands(ctx)
 
 
 @bot.event
 async def on_member_join(member):
-    preferences = check_server_file(member, 'preferences', bot)
-    xp = check_server_file(member, 'xp', bot)
-    if preferences['isGreet']:
-        channel = bot.get_channel(preferences['greetChannel'])
-        if '{}' in preferences['greetMsg']:
-            await channel.send(preferences['greetMsg'].format(member.id.mention))
+    pref = next(filter(lambda x: x["serverId"] == member.guild.id, preferences["servers"]), None)
+    if pref['isGreet']:
+        channel = bot.get_channel(pref['greetChannel'])
+        if '{}' in pref['greetMsg']:
+            await channel.send(pref['greetMsg'].format(member.id.mention))
         else:
-            await channel.send(preferences['greetMsg'])
-    write_to_json(populate_new(member, xp), xp['path'])
+            await channel.send(pref['greetMsg'])
+    write_to_json(await populate_new(member, xp_data, bot), xp_data['path'])
+    load_globals('xp')
 
 
 @bot.event
 async def on_message_delete(ctx):
-    pref = check_server_file(ctx, 'preferences', bot)
+    pref = get_server(ctx.guild.id, preferences, bot)
     if ctx.author == bot.user:
         return
     if pref['auditIsActive']:
@@ -63,7 +114,7 @@ async def on_message_delete(ctx):
 
 @bot.event
 async def on_message_edit(old_msg, new_msg):
-    pref = check_server_file(old_msg, 'preferences', bot)
+    pref = get_server(old_msg.guild.id, preferences, bot)
     if old_msg.author == bot.user:
         return
     if pref['auditIsActive']:
@@ -78,8 +129,8 @@ async def on_message_edit(old_msg, new_msg):
 
 @bot.command()
 async def audit(ctx):
+    pref = get_server(ctx.guild.id, preferences, bot)
     print('{0.author} used the audit command in {0.channel}.'.format(ctx))
-    pref = check_server_file(ctx, 'preferences', bot)
     if pref['auditIsActive']:
         await ctx.channel.send(
             "The audit feature is enabled. Disable or change channel? (Disable, Change, or Exit)")
@@ -116,7 +167,7 @@ async def audit(ctx):
             await ctx.channel.send("Command cancelled.")
     with open(pref['path'], 'w') as outfile:
         json.dump(pref, outfile)
-    load_from_json(pref['path'])
+    load_from_json(pref['name'])
     return
 
 
@@ -159,20 +210,20 @@ async def on_command_error(ctx, error):
 
 @bot.command()
 async def lvl(ctx, member: Member = None):
-    xp = load_from_json('json/xp-{}.json'.format(ctx.guild.id))
+    xp = get_server(ctx.guild.id, xp_data, bot)
     if member is None:
         member = ctx.author
         intro = 'You are'
     else:
         intro = '{} is'.format(member.display_name)
-    user = get_user(member.id, xp)
+    user = get_user(member.id, xp, bot)
     await ctx.channel.send('{} currently level {} ({}/{}EXP)'.format(
         intro, user['userLvl'], user['userTotalXp'], user['nextLvl']))
 
 
 @bot.command()
 async def top(ctx, arg: int = None):
-    xp = check_server_file(ctx, 'xp', bot)
+    xp = get_server(ctx.guild.id, xp_data, bot)
     user_list = []
     leaderboard = 'Top {}:'.format(arg)
     for user in xp['users']:
@@ -186,7 +237,7 @@ async def top(ctx, arg: int = None):
         arg = len(user_list)
     y = 0
     while y < arg:
-        leaderboard = '{}\n{}. {}\t{}'.format(leaderboard, (y+1), await bot.fetch_user(user_list[y][0]),
+        leaderboard = '{}\n{}. {}\t{}'.format(leaderboard, (y + 1), await bot.fetch_user(user_list[y][0]),
                                               user_list[y][1])
         y += 1
     print(leaderboard)
@@ -201,7 +252,7 @@ async def say(ctx, arg):
 
 @bot.command()
 async def greet(ctx, arg: str = None):
-    pref = check_server_file(ctx, 'preferences', bot)
+    pref = next(filter(lambda x: x["serverId"] == ctx.guild.id, preferences["servers"]), None)
     if arg is None:
         await ctx.channel.send('The commands available are: enable, disable, channel, and message')
         msg = await bot.wait_for('message', check=lambda message: message.author == ctx.author)
@@ -217,9 +268,9 @@ async def greet(ctx, arg: str = None):
                 res = await validate_channel(msg, bot)
                 if res == 'cancelled':
                     await ctx.channel.send('Command cancelled.')
+                    return
                 else:
                     pref['greetChannel'] = res
-                    write_to_json(pref, 'json/preferences-{}.json'.format(ctx.guild.id))
         elif arg.lower() == 'message':
             await ctx.channel.send('The current greeting is {}. Would you like to change it? Y/N'
                                    .format(pref['greetMsg']))
@@ -230,14 +281,14 @@ async def greet(ctx, arg: str = None):
                 msg = await bot.wait_for('message', check=lambda message: message.author == ctx.author)
                 if msg.content == 'cancel':
                     await ctx.channel.send('Command cancelled.')
+                    return
                 else:
                     pref['greetMsg'] = msg.content
-                    write_to_json(pref, 'json/preferences-{}.json'.format(ctx.guild.id))
         elif arg.lower() == 'disable':
             pref['isGreet'] = False
-            write_to_json(pref, 'json/preferences-{}.json'.format(ctx.guild.id))
         elif arg.lower() == 'enable':
             await ctx.channel.send('The greeting function is already enabled.')
+            return
     else:
         if arg.lower() == 'enable':
             await ctx.channel.send('Please enter the channel ID for the greeting to go.')
@@ -245,10 +296,13 @@ async def greet(ctx, arg: str = None):
             res = await validate_channel(msg, bot)
             if res == 'cancelled':
                 await ctx.channel.send('Command cancelled.')
+                return
             else:
                 pref['greetChannel'] = res
                 pref['isGreet'] = True
-                write_to_json(pref, 'json/preferences-{}.json'.format(ctx.guild.id))
-        return
+    write_to_json(preferences, 'json/preferences.json'.format(ctx.guild.id))
+    load_globals('preferences')
+    return
+
 
 bot.run(TOKEN)
