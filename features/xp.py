@@ -13,7 +13,7 @@ async def xp_process(ctx, xp, bot):
     # If the author already exists, it will add the experience.
     if user is not None:
         user.update(await add(ctx, user))
-    # If the author doesn't exist in the list, it will add them to xp.json along with the experience
+    # If the author doesn't exist in the list, it will add them to xp json along with the experience
     elif user is None:
         print("Adding {} to the Leaderboard".format(ctx.author))
         server['users'].append(await populate_exist(ctx))
@@ -61,7 +61,7 @@ def populate_new(mem, xp, bot):
     # If the author already exists, it will return.
     if user is not None:
         return
-    # If the author doesn't exist in the list, it will add them to xp.json
+    # If the author doesn't exist in the list, it will add them to xp json
     elif user is None:
         print("Adding {} to the Leaderboard".format(user))
         xp['users'].append({

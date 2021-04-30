@@ -4,6 +4,7 @@ import json
 import random
 from features.xp import xp_process, populate_new
 from features.util import *
+from features.timezone import convert_time
 
 bot = Bot(command_prefix='.')
 error_handling = errors
@@ -56,6 +57,7 @@ def load_globals(name):
 @bot.event
 async def on_ready():
     print('{0.user} is now active.'.format(bot))
+    convert_time('11:45PM', 'est', 'cst')
 
 
 @bot.event
@@ -68,7 +70,7 @@ async def on_message(ctx):
     if server is None:
         pref = add_server(ctx, pref, bot)
         server = next(filter(lambda x: x["serverId"] == ctx.guild.id, pref["servers"]), None)
-        pref['servers'].append(server)
+        # pref['servers'].append(server)
         write_to_json(preferences, 'json/preferences.json'.format(ctx.guild.id))
         load_globals('preferences')
     # Checks if the incoming message is from the bot, and if it is, it will ignore it.
@@ -90,31 +92,33 @@ async def on_message(ctx):
 
 @bot.event
 async def on_member_join(member):
-    pref = next(filter(lambda x: x["serverId"] == member.guild.id, preferences["servers"]), None)
-    if pref['isGreet']:
-        channel = bot.get_channel(pref['greetChannel'])
-        if '{}' in pref['greetMsg']:
-            await channel.send(pref['greetMsg'].format(member.id.mention))
+    pref = get_server(member, preferences, bot)
+    server = next(filter(lambda x: x["serverId"] == member.guild.id, pref["servers"]), None)
+    if server['isGreet']:
+        channel = bot.get_channel(server['greetChannel'])
+        if '{}' in server['greetMsg']:
+            await channel.send(server['greetMsg'].format(member.id.mention))
         else:
-            await channel.send(pref['greetMsg'])
+            await channel.send(server['greetMsg'])
     write_to_json(await populate_new(member, xp_data, bot), xp_data['path'])
     load_globals('xp')
 
 
 @bot.event
 async def on_message_delete(ctx):
-    pref = get_server(ctx.guild.id, preferences, bot)
+    pref = get_server(ctx, preferences, bot)
+    server = next(filter(lambda x: x["serverId"] == ctx.guild.id, pref["servers"]), None)
     if ctx.author == bot.user:
         return
-    if pref['auditIsActive']:
+    if server['auditIsActive']:
         timestamp = ctx.created_at.strftime("%m/%d/%Y %I:%M:%S%p")
-        channel = bot.get_channel(pref['auditChannel'])
+        channel = bot.get_channel(server['auditChannel'])
         await channel.send(f'{timestamp}\n{ctx.author.mention} in {ctx.channel.mention}: \n{ctx.content}')
 
 
 @bot.event
 async def on_message_edit(old_msg, new_msg):
-    pref = get_server(old_msg.guild.id, preferences, bot)
+    pref = get_server(old_msg, preferences, bot)
     if old_msg.author == bot.user:
         return
     if pref['auditIsActive']:
@@ -129,7 +133,7 @@ async def on_message_edit(old_msg, new_msg):
 
 @bot.command()
 async def audit(ctx):
-    pref = get_server(ctx.guild.id, preferences, bot)
+    pref = get_server(ctx, preferences, bot)
     print('{0.author} used the audit command in {0.channel}.'.format(ctx))
     if pref['auditIsActive']:
         await ctx.channel.send(
@@ -210,23 +214,25 @@ async def on_command_error(ctx, error):
 
 @bot.command()
 async def lvl(ctx, member: Member = None):
-    xp = get_server(ctx.guild.id, xp_data, bot)
+    xp = get_server(ctx, xp_data, bot)
+    server = next(filter(lambda x: x["serverId"] == ctx.guild.id, xp["servers"]), None)
     if member is None:
         member = ctx.author
         intro = 'You are'
     else:
         intro = '{} is'.format(member.display_name)
-    user = get_user(member.id, xp, bot)
+    user = next(filter(lambda x: x["userId"] == member.id, server["users"]), None)
     await ctx.channel.send('{} currently level {} ({}/{}EXP)'.format(
         intro, user['userLvl'], user['userTotalXp'], user['nextLvl']))
 
 
 @bot.command()
 async def top(ctx, arg: int = None):
-    xp = get_server(ctx.guild.id, xp_data, bot)
+    xp = get_server(ctx, xp_data, bot)
     user_list = []
     leaderboard = 'Top {}:'.format(arg)
-    for user in xp['users']:
+    server = next(filter(lambda x: x["serverId"] == ctx.guild.id, xp["servers"]), None)
+    for user in server['users']:
         if bot.user.id != user['userId']:
             user_list.append([user['userId'], user['userTotalXp']])
     user_list.sort(reverse=True, key=lambda x: x[1])
@@ -271,6 +277,7 @@ async def greet(ctx, arg: str = None):
                     return
                 else:
                     pref['greetChannel'] = res
+                    await ctx.channel.send('Greeting channel changed.')
         elif arg.lower() == 'message':
             await ctx.channel.send('The current greeting is {}. Would you like to change it? Y/N'
                                    .format(pref['greetMsg']))
@@ -280,12 +287,13 @@ async def greet(ctx, arg: str = None):
                                        'simply put {} where you want it at.')
                 msg = await bot.wait_for('message', check=lambda message: message.author == ctx.author)
                 if msg.content == 'cancel':
-                    await ctx.channel.send('Command cancelled.')
-                    return
+                    await ctx.channel.send('Default message kept.')
                 else:
                     pref['greetMsg'] = msg.content
+                    await ctx.channel.send('New message set.')
         elif arg.lower() == 'disable':
             pref['isGreet'] = False
+            await ctx.channel.send('Greeting is disabled.')
         elif arg.lower() == 'enable':
             await ctx.channel.send('The greeting function is already enabled.')
             return
@@ -299,10 +307,28 @@ async def greet(ctx, arg: str = None):
                 return
             else:
                 pref['greetChannel'] = res
+                await ctx.channel.send('The default  greeting is {}.\n'
+                                       'Please enter a greeting or cancel to exit. To include the new member, '
+                                       'simply put {{}} where you want it at.'.format(pref['greetMsg']))
+                res = await bot.wait_for('message', check=lambda message: message.author == ctx.author)
+                if res.content == 'cancel':
+                    await res.channel.send('Command cancelled.')
+                    return
+                pref['greetMsg'] = res.content
                 pref['isGreet'] = True
+                await ctx.channel.send('Greeting successfully set up.')
     write_to_json(preferences, 'json/preferences.json'.format(ctx.guild.id))
     load_globals('preferences')
     return
 
+
+@bot.command()
+async def tz(ctx, time, old_tz, new_tz):
+    if time is None or old_tz is None or new_tz is None:
+        await ctx.channel.send('The correct format is: `HH:MM OLD_TIMEZONE NEW_TIMEZONE`\n'
+                               'Example: `14:30 PST GDT` or `09:45PM EST GMT`')
+        return
+    converted_time = convert_time(time, old_tz, new_tz)
+    await ctx.channel.send('{} {} is {} {}'.format(time, old_tz, converted_time, new_tz))
 
 bot.run(TOKEN)

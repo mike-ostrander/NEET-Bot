@@ -51,7 +51,7 @@ def add_server(ctx, file, bot):
             "auditChannel": 0,
             "isGreet": False,
             "greetChannel": 0,
-            "greatMsg": "Welcome to the server, {}"
+            "greetMsg": "Welcome to the server, {}"
         })
     elif file['name'] == 'xp':
         file['servers'].append({
