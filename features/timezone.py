@@ -17,7 +17,7 @@ def convert_time(time, old_tz, new_tz):
     time_dt = datetime.strptime(time, "%H:%M")
     localized_time = old_tz.localize(time_dt, is_dst=None)
     converted_time = localized_time.astimezone(timezone(new_tz))
-    print(converted_time.strftime("%I:%M%p"))
+    return converted_time.strftime("%I:%M%p")
 
 
 def format_time(time):

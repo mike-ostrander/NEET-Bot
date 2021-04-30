@@ -57,7 +57,10 @@ def load_globals(name):
 @bot.event
 async def on_ready():
     print('{0.user} is now active.'.format(bot))
-    convert_time('11:45PM', 'est', 'cst')
+    for server in preferences['servers']:
+        if server['isGreet'] is True:
+            channel = bot.get_channel(server['greetChannel'])
+            await channel.send('{0.user.mention} has woken up!'.format(bot))
 
 
 @bot.event
