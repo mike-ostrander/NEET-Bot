@@ -1,8 +1,6 @@
 from datetime import datetime
 from pytz import timezone, all_timezones, utc
 
-time_format = '%H:%M'
-
 
 def print_timezones():
     for zone in all_timezones:
@@ -10,14 +8,14 @@ def print_timezones():
 
 
 def convert_time(time, old_tz, new_tz):
-    time = format_time(time.upper())
+    time = format_time((datetime.strftime(time, '%H:%M')).upper())
     old_tz = adjust_tz(old_tz.upper())
     new_tz = adjust_tz(new_tz.upper())
     old_tz = timezone(old_tz)
-    time_dt = datetime.strptime(time, "%H:%M")
+    time_dt = datetime.strptime(time, '%H:%M')
     localized_time = old_tz.localize(time_dt, is_dst=None)
     converted_time = localized_time.astimezone(timezone(new_tz))
-    return converted_time.strftime("%I:%M%p")
+    return format_dt(converted_time, 'time')
 
 
 def format_time(time):
@@ -43,3 +41,15 @@ def adjust_tz(tz):
     elif tz == 'EDT':
         tz = 'EST5EDT'
     return tz
+
+
+def format_dt(dt, dt_format):
+    if dt_format == 'date and time':
+        return dt.strftime("%Y-%m-%d %I:%M%p")
+    elif dt_format == 'date':
+        return dt.strftime("%Y-%m-%d")
+    elif dt_format == 'time':
+        return dt.strftime("%H:%M")
+    elif dt_format == 'hour':
+        return dt.strftime("%I")
+

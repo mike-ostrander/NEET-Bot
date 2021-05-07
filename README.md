@@ -15,8 +15,9 @@ A general purpose bot made for fun.
 - `.ping`
 	> pong
 - `.roll` 
-	> `(x)d(y)` where x = number of dice and y = sides of die. Example: .roll 1d20. <br />
-	A simple dice rolling feature.
+	> `(x)d(y)` where x = number of dice and y = sides of die. <br />
+	A simple dice rolling feature.<br />
+    Example: `.roll 1d20.` 
 - `.say`
 	> `x` where x is the message <br />
     A simple feature that allows a user to send a message that is then repeated by the bot. The original message is also deleted.

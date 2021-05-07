@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 
 
 def write_to_json(content, filename):
@@ -25,7 +26,7 @@ async def validate_channel(msg, bot):
     try:
         if bot.get_channel(int(msg.content)) is not None:
             # file[key] = int(msg.content)
-            return int(msg.content)
+            return True
         elif bot.get_channel(int(msg.content)) is None:
             await msg.channel.send(
                 "Invalid channel. Please enter valid channel ID or type 'exit' to cancel command.")
@@ -34,7 +35,7 @@ async def validate_channel(msg, bot):
     except ValueError:
         if msg.content.lower() == 'exit':
             await msg.channel.send("Command cancelled.")
-            return 'cancelled'
+            return False
         else:
             await msg.channel.send(
                 "Invalid channel. Please enter valid channel ID or type 'exit' to cancel command.")
@@ -47,16 +48,16 @@ def add_server(ctx, file, bot):
         file['servers'].append({
             "serverId": ctx.guild.id,
             "commandPrefix": ".",
-            "auditIsActive": False,
-            "auditChannel": 0,
+            "isAudit": False,
+            "auditChannelId": 0,
             "isGreet": False,
-            "greetChannel": 0,
-            "greetMsg": "Welcome to the server, {}"
+            "greetChannelId": 0,
+            "greetMsg": "Welcome to the server, {}",
         })
     elif file['name'] == 'xp':
         file['servers'].append({
             "serverId": ctx.guild.id,
-            "xpEnabled": True,
+            "isXp": True,
             "xpIgnoreChannels": 0,
             "users": [{
                 "userId": bot.user.id,
@@ -67,4 +68,31 @@ def add_server(ctx, file, bot):
                 "server": ctx.guild.id
             }]
         })
+    elif file['name'] == 'birthday':
+        file['servers'].append({
+            "serverId": ctx.guild.id,
+            "isBirthday": False,
+            "birthdayMsg": "Happy birthday, {}!",
+            "birthdayChannelId": 0,
+            "users": [{
+                "userId": bot.user.id,
+                "userBirthday": "01-01",
+                "userTz": 'GMT',
+                "remindTime": "12:00",
+                "server": ctx.guild.id
+            }]
+        })
     return file
+
+
+def add_birthday(ctx, date, time, tz):
+    if time == 0 or '':
+        time = "12:00"
+    return {
+                "userId": ctx.author.id,
+                "userBirthday": date,
+                "userTz": tz,
+                "remindTime": time,
+                "server": ctx.guild.id
+            }
+

@@ -45,17 +45,18 @@ async def populate_exist(msg):
         "userTotalXp": msg_length(msg.content),
         "userLvl": lvl,
         "nextLvl": next_lvl(lvl),
-        "lastMsg": msg.created_at.isoformat(),
+        "lastMsg": msg.created_at.strftime('%Y-%m-%dT%H:%M:%S.%f'),
         "server": msg.guild.id
     }
 
 
 def populate_new(mem, xp, bot):
+    now = datetime.datetime.now()
     # XP calculations
     # It checks if the message's author has been added
     server = next(filter(lambda x: x["serverId"] == mem.id, xp["servers"]), None)
     if server is None:
-        xp['servers'].append(add_server(mem, xp, bot))
+        xp['servers'].append(add_xp_server(mem, xp, bot))
         server = next(filter(lambda x: x["serverId"] == mem.author.id, xp["servers"]), None)
     user = next(filter(lambda x: x["userId"] == mem.id, server["users"]), None)
     # If the author already exists, it will return.
@@ -69,7 +70,7 @@ def populate_new(mem, xp, bot):
             "userTotalXp": 0,
             "userLvl": 1,
             "nextLvl": next_lvl(1),
-            "lastMsg": "2021-01-01T00:00:00.000000",
+            "lastMsg": now.strftime('%Y-%m-%dT%H:%M:%S.%f'),
             "server": mem.guild.id
         })
     return xp
@@ -97,7 +98,7 @@ def next_lvl(lvl):
 def add_xp_server(ctx, file, bot):
     file['servers'].append({
         "serverId": ctx.guild.id,
-        "xpEnabled": True,
+        "isXp": True,
         "xpIgnoreChannels": 0,
         "users": [{
             "userId": bot.user.id,
