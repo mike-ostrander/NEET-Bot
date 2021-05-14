@@ -1,8 +1,8 @@
 {
-    "name": "neet-bot",
+    "name": "umaru-chan",
     "version": "0.0.1",
     "description": "An all purpose bot.",
-    "main": "neet_bot.py",
+    "main": "bot.py",
     "author": "Mike Ostrander",
     "dependencies": {}
 }

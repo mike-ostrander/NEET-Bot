@@ -1,14 +1,13 @@
 import asyncio
 from apscheduler.schedulers.blocking import BlockingScheduler
-from datetime import datetime, timedelta, time, date
-
+from datetime import date
 from discord.ext.commands import Bot, errors, has_permissions
 from discord import Member
 import json
 import random
 from features.xp import xp_process, populate_new
 from features.util import *
-from features.timezone import convert_time, format_dt
+from features.timezone import convert_time
 
 bot = Bot(command_prefix='.')
 error_handling = errors
@@ -351,7 +350,8 @@ async def setup(ctx, arg: str = None):
         load_globals('preferences')
     # elif arg.lower() == 'prefix':
     #     server = next(filter(lambda x: x["serverId"] == ctx.guild.id, preferences["servers"]), None)
-    #     await ctx.channel.send('The current prefix is `{}` Would you like to `change` it?'.format(server['commandPrefix']))
+    #     await ctx.channel.send('The current prefix is `{}` Would you like to `change` it?'
+    #                            .format(server['commandPrefix']))
     #     msg = await bot.wait_for('message', check=lambda message: message.author == ctx.author)
     #     if msg.content.lower() == 'change' or msg.content.lower() == 'y' or msg.content.lower() == 'yes':
     #         await ctx.channel.send('Enter the new prefix:')

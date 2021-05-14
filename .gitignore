@@ -129,3 +129,6 @@ dmypy.json
 .pyre/
 
 json/auth.json
+json/birthday.json
+json/preferences.json
+json/xp.json
